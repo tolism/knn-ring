@@ -15,14 +15,43 @@ knnresult updateResult(knnresult result,knnresult tempResult,int offset,int newO
 knnresult kNN(double * X , double * Y , int n , int m , int d , int k);
 
 
+
+
 knnresult distrAllkNN(double * X , int n , int d , int k ) {
 
   int numtasks , taskid ;
   MPI_Comm_size(MPI_COMM_WORLD,&numtasks);
   MPI_Comm_rank(MPI_COMM_WORLD,&taskid);
+  MPI_Request request[3];
+  MPI_Status status;
+
 
   int *idx =(int *)malloc(n*k*sizeof(int));
   double * dist = (double *) malloc(n * k * sizeof(double));
+  double *buffer = (double *) malloc(n * d * sizeof(double));
+  double *myElements = (double *) malloc(n * d * sizeof(double));
+  double *otherElements = (double *) malloc(n * d * sizeof(double));
+   if(idx==NULL){
+     printf("IDX THEMA ");
+
+   }
+   if(dist==NULL){
+     printf("DIST THEMA");
+
+   }
+   if(buffer==NULL){
+     printf("BUFFER THEMA");
+
+   }
+   if(myElements==NULL){
+     printf("MyElements THEM");
+
+   }
+   if(otherElements==NULL){
+     printf("OTHER ELEMENTS THEMA");
+
+   }
+
 
   knnresult result ;
   knnresult tempResult  ;
@@ -32,70 +61,84 @@ knnresult distrAllkNN(double * X , int n , int d , int k ) {
   idx = result.nidx;
   dist = result.ndist;
 
-  double *buffer = (double *) malloc(n * d * sizeof(double));
-  double *myElements = (double *) malloc(n * d * sizeof(double));
-  double *otherElements = (double *) malloc(n * d * sizeof(double));
-  double *y = (double *)malloc(n*k*sizeof(double));
-  int *yidx = (int *)malloc(n*k*sizeof(int));
+
   myElements = X;
+
   int counter= 2;
   int p1, p2, p3;
-  int offset , newOff ;
-
+  int newOff , offset;
 
   switch(taskid%2){
     case 0:
-    MPI_Recv(otherElements , n*d , MPI_DOUBLE, (numtasks+taskid- 1)%numtasks , 0 , MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Isend(myElements , n*d , MPI_DOUBLE, (taskid + 1)%numtasks , 0 , MPI_COMM_WORLD , &request[0] );
+    MPI_Irecv(otherElements , n*d , MPI_DOUBLE, taskid - 1 , 0 , MPI_COMM_WORLD, &request[1]);
     result = kNN(myElements,myElements,n,n,d,k);
-    MPI_Send(myElements , n*d , MPI_DOUBLE, (taskid + 1)%numtasks , 0 , MPI_COMM_WORLD );
-    tempResult = kNN(otherElements , myElements , n , n , d ,k);
     offset = (numtasks+taskid-1)%numtasks;
-    newOff = (numtasks+offset-1)%numtasks;
-    result = updateResult( result, tempResult, offset, newOff);
-
-  while(counter<numtasks){
-    MPI_Recv(buffer , n*d , MPI_DOUBLE, (numtasks+taskid- 1)%numtasks , 0 , MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    MPI_Send(otherElements , n*d , MPI_DOUBLE, (taskid + 1)%numtasks , 0 , MPI_COMM_WORLD );
-    swapElement(&otherElements, &buffer);
-    //otherElements = buffer;
-    newOff = (numtasks + newOff-1)%numtasks;
-    tempResult = kNN( otherElements , myElements,  n ,n , d ,k );
-    result = updateResult( result, tempResult, 0, newOff);
-    counter++;
-    }
-    break;
-
-    case 1:
-    MPI_Send(myElements , n*d , MPI_DOUBLE, (taskid + 1)%numtasks , 0 , MPI_COMM_WORLD );
-    result = kNN(myElements,myElements,n,n,d,k);
-    MPI_Recv(otherElements , n*d , MPI_DOUBLE, taskid - 1 , 0 , MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    tempResult = kNN(otherElements , myElements,  n , n , d ,k);
-    offset = (numtasks+taskid-1)%numtasks;
-    newOff = (numtasks+offset-1)%numtasks;
-    result = updateResult( result, tempResult, offset, newOff);
-
+    newOff = (numtasks + offset-1)%numtasks;
+    MPI_Wait(&request[1],&status);
     while(counter<numtasks){
-        MPI_Send(otherElements , n*d , MPI_DOUBLE, (taskid + 1)%numtasks , 0 , MPI_COMM_WORLD );
-        MPI_Recv(otherElements , n*d , MPI_DOUBLE, taskid - 1 , 0 , MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Isend(otherElements , n*d , MPI_DOUBLE, (taskid + 1)%numtasks , 0 , MPI_COMM_WORLD , &request[2] );
+      MPI_Irecv(buffer , n*d , MPI_DOUBLE, taskid - 1 , 0 , MPI_COMM_WORLD, &request[1]);
+        tempResult = kNN(otherElements ,  myElements, n , n , d ,k );
+
+        if(counter == 2 ){
+        result = updateResult( result, tempResult, offset, newOff);
+        }
+        else{
+          newOff = (numtasks + newOff-1)%numtasks;
+          result = updateResult( result, tempResult, 0, newOff);
+        }
+      MPI_Wait(&request[1],&status);
+      MPI_Wait(&request[2],&status);
+      swapElement(&otherElements,&buffer);
+        counter++;
+      }
+      tempResult = kNN(otherElements ,  myElements, n , n , d ,k );
+      newOff = (numtasks + newOff-1)%numtasks;
+      result = updateResult( result, tempResult, 0, newOff);
+      break;
+      case 1:
+      MPI_Isend(myElements , n*d , MPI_DOUBLE, (taskid + 1)%numtasks , 0 , MPI_COMM_WORLD , &request[0] );
+      MPI_Irecv(otherElements , n*d , MPI_DOUBLE, taskid - 1 , 0 , MPI_COMM_WORLD, &request[1]);
+      result = kNN(myElements,myElements,n,n,d,k);
+      offset = (numtasks+taskid-1)%numtasks;
+      newOff = (numtasks + offset-1)%numtasks;
+      MPI_Wait(&request[1],&status);
+      while(counter<numtasks){
+        MPI_Isend(otherElements , n*d , MPI_DOUBLE, (taskid + 1)%numtasks , 0 , MPI_COMM_WORLD , &request[2] );
+        MPI_Irecv(buffer , n*d , MPI_DOUBLE, taskid - 1 , 0 , MPI_COMM_WORLD, &request[1]);
+          tempResult = kNN(otherElements ,  myElements, n , n , d ,k );
+
+          if(counter == 2 ){
+          result = updateResult( result, tempResult, offset, newOff);
+          }
+          else{
+            newOff = (numtasks + newOff-1)%numtasks;
+            result = updateResult( result, tempResult, 0, newOff);
+          }
+        MPI_Wait(&request[1],&status);
+        MPI_Wait(&request[2],&status);
+        swapElement(&otherElements,&buffer);
+          counter++;
+        }
         tempResult = kNN(otherElements ,  myElements, n , n , d ,k );
         newOff = (numtasks + newOff-1)%numtasks;
         result = updateResult( result, tempResult, 0, newOff);
-        counter++;
-      }
-      break;
-  }
+        break;
 
-  double localMin=result.ndist[1];
-  double localMax=result.ndist[0];
-  for(int i=0; i <n*k; i++){
-    if(result.ndist[i]>localMax){
-      localMax = result.ndist[i];
-    }
-    if(result.ndist[i]<localMin && result.ndist[i]!=0){
-      localMin = result.ndist[i];
-    }
-  }
+}
+MPI_Barrier(MPI_COMM_WORLD);
 
+double localMin=result.ndist[1];
+double localMax=result.ndist[0];
+for(int i=0; i <n*k; i++){
+  if(result.ndist[i]>localMax){
+    localMax = result.ndist[i];
+  }
+  if(result.ndist[i]<localMin && result.ndist[i]!=0){
+    localMin = result.ndist[i];
+  }
+}
 
 
 double globalMin;
@@ -106,8 +149,11 @@ MPI_Allreduce(&localMax, &globalMax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
 printf("AT process  %d MAX : %lf, MIN : %lf  \n " ,taskid , globalMax , globalMin );
 
+
+
   return result;
 }
+
 
 void swapElement(double **one, double  **two){
 	double  *temp = *one;
@@ -263,7 +309,7 @@ knnresult kNN(double * X , double * Y , int n , int m , int d , int k) {
 
   double * xRow = (double *) calloc(n,sizeof(double));
   double * yRow = (double *) calloc(m,sizeof(double));
-  double * transD = (double *)calloc(m*n,sizeof(double));
+  double * transD = (double *) malloc(m*n*sizeof(double));
 
   for(int i=0; i<n; i++){
     for(int j=0; j<d; j++){
@@ -290,14 +336,12 @@ knnresult kNN(double * X , double * Y , int n , int m , int d , int k) {
   //free(yRow);
   // calculate transpose matrix
   if(transD==NULL){
-    printf("transd exei thema \n");
+    printf("transd exei thema");
 
   }
-  double temp2=0;
   for(int i=0; i<n; i++){
     for(int j=0; j<m; j++){
-      temp2 = *(distance + i*m + j );
-      *(transD + j*n + i ) = temp2 ;
+      *(transD + j*n + i ) = *(distance + i*m + j );
     }
   }
 

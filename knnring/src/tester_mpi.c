@@ -123,22 +123,22 @@ int testMPI( int    const n,
     }
 
 
-    // printf ("\n Matrix DISTANCE: \n");
-    // for (int i=0; i<n*p; i++) {
-    //   for (int j=0; j<k; j++) {
-    //     printf ("%lf    ", *(knnresall.ndist+i*k+j));
-    //   }
-    //   printf ("\n");
-    // }
-    //
-    // printf ("\n Matrix INDECES: \n");
-    // for (int i=0; i<n*p; i++) {
-    //   for (int j=0; j<k; j++) {
-    //     printf ("%10.2d", *(knnresall.nidx+i*k+j));
-    //   }
-    //   printf ("\n");
-    // }
-    //
+    printf ("\n Matrix DISTANCE: \n");
+    for (int i=0; i<n*p; i++) {
+      for (int j=0; j<k; j++) {
+        printf ("%lf    ", *(knnresall.ndist+i*k+j));
+      }
+      printf ("\n");
+    }
+
+    printf ("\n Matrix INDECES: \n");
+    for (int i=0; i<n*p; i++) {
+      for (int j=0; j<k; j++) {
+        printf ("%10.2d", *(knnresall.nidx+i*k+j));
+      }
+      printf ("\n");
+    }
+
 
 
 
@@ -185,16 +185,17 @@ int main(int argc, char *argv[])
   MPI_Init(&argc, &argv);       // initialize MPI
 
   int id;                       // PID
-  int n=1599;                   // # corpus elements per process
-  int d=5;                     // # dimensions
-  int k=24;                     // # neighbors
+  int n=4;                   // # corpus elements per process
+  int d=2;                     // # dimensions
+  int k=3;                     // # neighbors
 
   MPI_Comm_rank(MPI_COMM_WORLD, &id); // Task ID
 
 
   // ============================== RUN EXPERIMENTS
 
-  int isValidC = testMPI( n, d, k, COLMAJOR );
+  //int isValidC = testMPI( n, d, k, COLMAJOR );
+  int isValidC =0;
   int isValidR = testMPI( n, d, k, ROWMAJOR );
 
 
