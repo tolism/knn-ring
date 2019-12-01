@@ -1,25 +1,19 @@
-# knn-ring
+# k-Nearest Neighbors Ring
 
 Parallel and Distributed Systems : 2nd assignment
 
 ## Installation and Execution 
 
-To execute the versions make all inside the knnring file
-
-./src/knnring_sequential for the sequential version 
-mpirun -np <number of processes> ./src/knnring_mpi_syc for the sychronous version 
-mpirun -np <number of processes> ./src/knnring_mpi_asyc for the asychronous version 
-
+To execute the versions 
 ```
 make all
-/src/knnring_sequential
+/src/knnring_sequential 
 mpirun -np <number of processes> ./src/knnring_mpi_syc
 mpirun -np <number of processes> ./src/knnring_mpi_asyc
 
 ```
-
-
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
+To change the number of poinnts , dimensions and k , modify the tester.c for the sequential and tester_mpi.c 
+for the mpi versions.
 
 ### Prerequisites
 
