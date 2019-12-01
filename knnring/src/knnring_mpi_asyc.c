@@ -1,3 +1,18 @@
+/*
+* FILE: knnring_mpi_asyc.c
+* THMMY, 7th semester, Parallel and Distributed Systems: 2nd assignment
+* MPI implementation of knnring
+* Authors:
+*   Moustaklis Apostolos, 9127, amoustakl@ece.auth.gr
+*   Christoforidis Savvas, 9147, schristofo@ece.auth.gr
+* Compile command with :
+*   make all
+* Run command example:
+*   ./knnring_mpi_asyc
+* It will find the k-Nearest Neighbours
+* of the given corpus and query set
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -9,7 +24,8 @@
 
 
 void swapElement(double **one, double  **two);
-void qselect(double *tArray,int *index, int len, int k);
+int partition(double *arr , int *index, int l, int r);
+void kthSmallest(double *arr,int *idx , int l, int r, int k);
 void quicksort(double *array, int *idx, int first, int last);
 knnresult updateResult(knnresult result,knnresult tempResult,int offset,int newOff);
 knnresult kNN(double * X , double * Y , int n , int m , int d , int k);
@@ -65,7 +81,6 @@ knnresult distrAllkNN(double * X , int n , int d , int k ) {
   myElements = X;
 
   int counter= 2;
-  int p1, p2, p3;
   int newOff , offset;
 
   switch(taskid%2){
@@ -76,6 +91,7 @@ knnresult distrAllkNN(double * X , int n , int d , int k ) {
     offset = (numtasks+taskid-1)%numtasks;
     newOff = (numtasks + offset-1)%numtasks;
     MPI_Wait(&request[1],&status);
+
     while(counter<numtasks){
       MPI_Isend(otherElements , n*d , MPI_DOUBLE, (taskid + 1)%numtasks , 0 , MPI_COMM_WORLD , &request[2] );
       MPI_Irecv(buffer , n*d , MPI_DOUBLE, taskid - 1 , 0 , MPI_COMM_WORLD, &request[1]);
@@ -93,10 +109,16 @@ knnresult distrAllkNN(double * X , int n , int d , int k ) {
       swapElement(&otherElements,&buffer);
         counter++;
       }
+
       tempResult = kNN(otherElements ,  myElements, n , n , d ,k );
+      if(numtasks!=2){
       newOff = (numtasks + newOff-1)%numtasks;
-      result = updateResult( result, tempResult, 0, newOff);
+      offset = 0 ;
+      }
+      result = updateResult( result, tempResult, offset, newOff);
       break;
+
+
       case 1:
       MPI_Isend(myElements , n*d , MPI_DOUBLE, (taskid + 1)%numtasks , 0 , MPI_COMM_WORLD , &request[0] );
       MPI_Irecv(otherElements , n*d , MPI_DOUBLE, taskid - 1 , 0 , MPI_COMM_WORLD, &request[1]);
@@ -122,8 +144,11 @@ knnresult distrAllkNN(double * X , int n , int d , int k ) {
           counter++;
         }
         tempResult = kNN(otherElements ,  myElements, n , n , d ,k );
+        if(numtasks!=2){
         newOff = (numtasks + newOff-1)%numtasks;
-        result = updateResult( result, tempResult, 0, newOff);
+        offset = 0 ;
+        }
+        result = updateResult( result, tempResult, offset , newOff);
         break;
 
 }
@@ -162,30 +187,60 @@ void swapElement(double **one, double  **two){
 }
 
 
-void qselect(double *tArray,int *index, int len, int k) {
-	#	define SWAP(a, b) { tmp = tArray[a]; tArray[a] = tArray[b]; tArray[b] = tmp; }
-  #	define SWAPINDEX(a, b) { tmp = index[a]; index[a] = index[b]; index[b] = tmp; }
-	int i, st;
-	double tmp;
+int partition(double *arr , int *index, int l, int r)
+{
+  #	define SWAP(a, b) { tmp = arr[a]; arr[a] = arr[b]; arr[b] = tmp; }
+  #	define SWAPINDEX(a, b) { tmpIdx = index[a]; index[a] = index[b]; index[b] = tmpIdx; }
+    double tmp;
+    int tmpIdx;
 
-	for (st = i = 0; i < len - 1; i++) {
-		if (tArray[i] > tArray[len-1]) continue;
-		SWAP(i, st);
-    SWAPINDEX(i,st);
-		st++;
-	}
-	SWAP(len-1, st);
-  SWAPINDEX(len-1,st);
-  if(k < st){
-    qselect(tArray, index,st, k);
-  }
-  else if(k > st){
-    qselect(tArray + st, index + st, len - st, k - st);
-  }
-  if (k == st){
-    return ;
-  }
-  return ;
+    double x = arr[r];
+    int  i = l;
+    for (int j = l; j <= r - 1; j++) {
+        if (arr[j] <= x) {
+          SWAP(i, j);
+          SWAPINDEX(i,j);
+
+            i++;
+        }
+    }
+    SWAP(i, r);
+    SWAPINDEX(i,r);
+    return i;
+}
+
+// This function returns k'th smallest
+// element in arr[l..r] using QuickSort
+// based method.  ASSUMPTION: ALL ELEMENTS
+// IN ARR[] ARE DISTINCT
+void kthSmallest(double *arr,int *idx , int l, int r, int k)
+{
+    // If k is smaller than number of
+    // elements in array
+    if (k > 0 && k <= r - l + 1) {
+
+        // Partition the array around last
+        // element and get position of pivot
+        // element in sorted array
+        int index = partition(arr,idx ,  l, r);
+
+        // If position is same as k
+        if (index - l == k - 1)
+            return ;
+
+        // If position is more, recur
+        // for left subarray
+        if (index - l > k - 1)
+            return kthSmallest(arr, idx , l, index - 1, k);
+
+        // Else recur for right subarray
+        return kthSmallest(arr, idx , index + 1, r,
+                            k - index + l - 1);
+    }
+
+    // If k is more than number of
+    // elements in array
+    return;
 }
 
 void quicksort(double *array, int *idx, int first, int last){
@@ -227,7 +282,6 @@ void quicksort(double *array, int *idx, int first, int last){
    }
 }
 
-
 knnresult updateResult(knnresult result,knnresult tempResult,int offset,int newOff){
   double *y = (double *)malloc(result.m*result.k*sizeof(double));
   int *yidx = (int *)malloc(result.m*result.k*sizeof(int));
@@ -268,8 +322,6 @@ knnresult updateResult(knnresult result,knnresult tempResult,int offset,int newO
   return result;
 }
 
-
-
 knnresult kNN(double * X , double * Y , int n , int m , int d , int k) {
 
   knnresult result;
@@ -277,39 +329,44 @@ knnresult kNN(double * X , double * Y , int n , int m , int d , int k) {
   result.m = m;
   result.nidx = NULL;
   result.ndist = NULL;
-  int taskid, numtasks;
-  MPI_Comm_rank(MPI_COMM_WORLD,&taskid);
-  MPI_Comm_size(MPI_COMM_WORLD,&numtasks);
 
-
-  double * distance;
-  int *indeces;
   double alpha=-2.0, beta=0.0;
   int lda=d, ldb=d, ldc=m, i, j;
   int counter = 0;
+  double limit = 0.00000001;
 
-  distance = (double *) malloc((n*m)*sizeof(double));
-  if(distance == NULL){
-    printf("distance exei thema");
+  double * distance = (double *) malloc((n*m)*sizeof(double));
+  double * xRow = (double *) calloc(n,sizeof(double));
+  double * yRow = (double *) calloc(m,sizeof(double));
+  double * transD = (double *) malloc(m*n*sizeof(double));
+  int * indeces = (int*) malloc(m * n  *sizeof(int));
+  double * final = (double *) malloc(m*k * sizeof(double));
+  int * finalIdx = (int *) malloc (m * k * sizeof(int));
 
-  }
-
-  indeces= (int*)malloc(m * n  *sizeof(int));
-  if(indeces ==NULL ){
-    printf("indeces exei thema ");
-
-  }
   for(int i=0; i<m; i++){
     for(int j=0; j<n; j++) {
       *(indeces+i*n+j)=j;
     }
   }
 
-  cblas_dgemm(CblasRowMajor , CblasNoTrans , CblasTrans , n, m , d , alpha , X , lda , Y , ldb , beta, distance , ldc);
+  if(transD==NULL){
+    printf("transd exei thema \n");
+  }
+  if(distance == NULL){
+    printf("distance exei thema");
+  }
+  if(indeces ==NULL ){
+    printf("indeces exei thema ");
+  }
+  if(final==NULL){
+    printf(" FINAL  EXEI THEMA");
+  }
+  if(finalIdx==NULL){
+    printf(" finalidx  EXEI THEMA");
+  }
 
-  double * xRow = (double *) calloc(n,sizeof(double));
-  double * yRow = (double *) calloc(m,sizeof(double));
-  double * transD = (double *) malloc(m*n*sizeof(double));
+
+  cblas_dgemm(CblasRowMajor , CblasNoTrans , CblasTrans , n, m , d , alpha , X , lda , Y , ldb , beta, distance , ldc);
 
   for(int i=0; i<n; i++){
     for(int j=0; j<d; j++){
@@ -324,7 +381,7 @@ knnresult kNN(double * X , double * Y , int n , int m , int d , int k) {
   for(int i=0; i<n; i++){
     for(int j=0; j<m; j++){
       *(distance + i*m + j) += xRow[i] + yRow[j];
-      if(*(distance + i*m + j) < 0.00000001){
+      if(*(distance + i*m + j) < limit){
         *(distance + i*m + j) = 0;
       }
       else{
@@ -332,51 +389,35 @@ knnresult kNN(double * X , double * Y , int n , int m , int d , int k) {
       }
     }
   }
-  //free(xRow);
-  //free(yRow);
-  // calculate transpose matrix
-  if(transD==NULL){
-    printf("transd exei thema");
+  free(xRow);
+  free(yRow);
 
-  }
+  // calculate transpose matrix
   for(int i=0; i<n; i++){
     for(int j=0; j<m; j++){
-      *(transD + j*n + i ) = *(distance + i*m + j );
+      *(transD + j*n + i ) = *(distance + i*m + j ); ;
     }
   }
+//  free(distance);
 
-  double * final = (double *) malloc(m*k * sizeof(double));
-  int * finalIdx = (int *) malloc (m * k * sizeof(int));
-  double * temp = (double *) malloc(n * sizeof(double));
-  int * tempIdx = (int *) malloc (n * sizeof(int));
-  if(final==NULL){
-    printf(" FINAL  EXEI THEMA");
+for(int i=0; i < m; i++){
+  kthSmallest(transD , indeces , i*n , (i+1)*n-1, k);
+}
 
-  }
-  if(finalIdx==NULL){
-    printf(" finalidx  EXEI THEMA");
+for(int i = 0; i<m; i++){
+  for(int j = 0; j<k; j++){
 
-  }
-  if(temp==NULL){
-    printf(" temp EXEI THEMA");
+    *(final+i*k+j) = *(transD+i*n+j);
+    *(finalIdx+i*k+j) = *(indeces+i*n+j);
 
   }
-  if(tempIdx==NULL){
-    printf(" tempidx  EXEI THEMA");
+}
+for(int i = 0 ; i<m; i++){
+    quicksort(final , finalIdx , i*k , (i+1)*k-1);
+}
+ free(transD);
+  free(indeces);
 
-  }
-  for(int i=0; i<m; i++){
-    for(int j=0; j<n; j++){
-      *(temp+j) = *(transD+i*n+j);
-      *(tempIdx+j)= *(indeces+i*n+j);
-    }
-    qselect(temp,tempIdx,n,k);
-    quicksort(temp, tempIdx,0,k);
-    for(int j=0; j<k; j++){
-      *(final+i*k+j) = temp[j];
-      *(finalIdx+i*k+j) = tempIdx[j];
-    }
-  }
   result.ndist = final;
   result.nidx = finalIdx;
 
