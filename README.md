@@ -12,7 +12,7 @@ mpirun -np <number of processes> ./src/knnring_mpi_syc
 mpirun -np <number of processes> ./src/knnring_mpi_asyc
 
 ```
-To change the number of poinnts , dimensions and k , modify the tester.c for the sequential and tester_mpi.c 
+To change the number of points , dimensions and k , modify the tester.c for the sequential and tester_mpi.c 
 for the mpi versions.
 
 ### Prerequisites
