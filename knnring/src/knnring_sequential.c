@@ -41,7 +41,7 @@ knnresult kNN(double * X , double * Y , int n , int m , int d , int k) {
   int counter = 0;
   double limit = 0.00000001;
 
-  double * distance = (double *) malloc((n*m)*sizeof(double));
+  double * distance = (double *) calloc((n*m),sizeof(double));
   double * xRow = (double *) calloc(n,sizeof(double));
   double * yRow = (double *) calloc(m,sizeof(double));
   double * transD = (double *) malloc(m*n*sizeof(double));
@@ -54,23 +54,6 @@ knnresult kNN(double * X , double * Y , int n , int m , int d , int k) {
       *(indeces+i*n+j)=j;
     }
   }
-
-  if(transD==NULL){
-    printf("transd exei thema \n");
-  }
-  if(distance == NULL){
-    printf("distance exei thema");
-  }
-  if(indeces ==NULL ){
-    printf("indeces exei thema ");
-  }
-  if(final==NULL){
-    printf(" FINAL  EXEI THEMA");
-  }
-  if(finalIdx==NULL){
-    printf(" finalidx  EXEI THEMA");
-  }
-
 
   cblas_dgemm(CblasRowMajor , CblasNoTrans , CblasTrans , n, m , d , alpha , X , lda , Y , ldb , beta, distance , ldc);
 

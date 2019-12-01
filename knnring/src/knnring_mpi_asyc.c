@@ -31,8 +31,6 @@ knnresult updateResult(knnresult result,knnresult tempResult,int offset,int newO
 knnresult kNN(double * X , double * Y , int n , int m , int d , int k);
 
 
-
-
 knnresult distrAllkNN(double * X , int n , int d , int k ) {
 
   int numtasks , taskid ;
@@ -47,26 +45,6 @@ knnresult distrAllkNN(double * X , int n , int d , int k ) {
   double *buffer = (double *) malloc(n * d * sizeof(double));
   double *myElements = (double *) malloc(n * d * sizeof(double));
   double *otherElements = (double *) malloc(n * d * sizeof(double));
-   if(idx==NULL){
-     printf("IDX THEMA ");
-
-   }
-   if(dist==NULL){
-     printf("DIST THEMA");
-
-   }
-   if(buffer==NULL){
-     printf("BUFFER THEMA");
-
-   }
-   if(myElements==NULL){
-     printf("MyElements THEM");
-
-   }
-   if(otherElements==NULL){
-     printf("OTHER ELEMENTS THEMA");
-
-   }
 
 
   knnresult result ;
@@ -82,6 +60,13 @@ knnresult distrAllkNN(double * X , int n , int d , int k ) {
 
   int counter= 2;
   int newOff , offset;
+
+
+  clock_t t1;
+
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  t1 = clock();
 
   switch(taskid%2){
     case 0:
@@ -154,6 +139,16 @@ knnresult distrAllkNN(double * X , int n , int d , int k ) {
 }
 MPI_Barrier(MPI_COMM_WORLD);
 
+t1 = clock() - t1;
+double timeTaken = ((double) t1) / CLOCKS_PER_SEC;
+double avgTimeTaken = 0;
+MPI_Reduce( & timeTaken, & avgTimeTaken, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+if (taskid == 0) {
+  printf("Time taken :  %lf\n", timeTaken / (numtasks));
+
+}
+
 double localMin=result.ndist[1];
 double localMax=result.ndist[0];
 for(int i=0; i <n*k; i++){
@@ -172,7 +167,7 @@ double globalMax;
 MPI_Allreduce(&localMin, &globalMin, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
 MPI_Allreduce(&localMax, &globalMax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
-printf("AT process  %d MAX : %lf, MIN : %lf  \n " ,taskid , globalMax , globalMin );
+//printf("AT process  %d MAX : %lf, MIN : %lf  \n " ,taskid , globalMax , globalMin );
 
 
 
@@ -286,14 +281,6 @@ knnresult updateResult(knnresult result,knnresult tempResult,int offset,int newO
   double *y = (double *)malloc(result.m*result.k*sizeof(double));
   int *yidx = (int *)malloc(result.m*result.k*sizeof(int));
 
-  if(y==NULL){
-    printf("Y EXEI THEMA");
-
-  }
-  if(yidx==NULL){
-    printf("YIDX EXEI THEMA");
-
-  }
   int p1 , p2 , p3;
   for(int i=0; i<result.m; i++){
     p1=0, p2=0, p3=0;
@@ -335,7 +322,7 @@ knnresult kNN(double * X , double * Y , int n , int m , int d , int k) {
   int counter = 0;
   double limit = 0.00000001;
 
-  double * distance = (double *) malloc((n*m)*sizeof(double));
+  double * distance = (double *) calloc((n*m),sizeof(double));
   double * xRow = (double *) calloc(n,sizeof(double));
   double * yRow = (double *) calloc(m,sizeof(double));
   double * transD = (double *) malloc(m*n*sizeof(double));
@@ -348,23 +335,6 @@ knnresult kNN(double * X , double * Y , int n , int m , int d , int k) {
       *(indeces+i*n+j)=j;
     }
   }
-
-  if(transD==NULL){
-    printf("transd exei thema \n");
-  }
-  if(distance == NULL){
-    printf("distance exei thema");
-  }
-  if(indeces ==NULL ){
-    printf("indeces exei thema ");
-  }
-  if(final==NULL){
-    printf(" FINAL  EXEI THEMA");
-  }
-  if(finalIdx==NULL){
-    printf(" finalidx  EXEI THEMA");
-  }
-
 
   cblas_dgemm(CblasRowMajor , CblasNoTrans , CblasTrans , n, m , d , alpha , X , lda , Y , ldb , beta, distance , ldc);
 
