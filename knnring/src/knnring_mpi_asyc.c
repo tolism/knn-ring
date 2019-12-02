@@ -181,8 +181,8 @@ double globalMax;
 
 MPI_Allreduce(&localMin, &globalMin, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
 MPI_Allreduce(&localMax, &globalMax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-
-//printf("AT process  %d MAX : %lf, MIN : %lf  \n " ,taskid , globalMax , globalMin );
+if(!taskid)
+printf("AT process  %d MAX : %lf, MIN : %lf  \n " ,taskid , globalMax , globalMin );
 
 
 
