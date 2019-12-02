@@ -1,7 +1,10 @@
 /*
-* FILE: knnring_mpi.c
-* Used for the Elearning Online Tester
+* HELPER FILE: knnring_mpi.c
+* Used for the Elearning Online Tester Only
+* V1 and V2 files are knnring_mpi_syc and knnring_mpi_asyc
+
 */
+
 
 
 #include <stdio.h>
@@ -22,8 +25,8 @@ knnresult kNN(double * X, double * Y, int n, int m, int d, int k);
 
 knnresult distrAllkNN(double * X, int n, int d, int k) {
 
-  int numtasks, taskid;
-  MPI_Comm_size(MPI_COMM_WORLD, & numtasks);
+  int taskNum, taskid;
+  MPI_Comm_size(MPI_COMM_WORLD, & taskNum);
   MPI_Comm_rank(MPI_COMM_WORLD, & taskid);
 
   int * idx = (int * ) malloc(n * k * sizeof(int));
@@ -40,8 +43,7 @@ knnresult distrAllkNN(double * X, int n, int d, int k) {
   double * buffer = (double * ) malloc(n * d * sizeof(double));
   double * myElements = (double * ) malloc(n * d * sizeof(double));
   double * otherElements = (double * ) malloc(n * d * sizeof(double));
-  double * y = (double * ) malloc(n * k * sizeof(double));
-  int * yidx = (int * ) malloc(n * k * sizeof(int));
+  
   myElements = X;
   int counter = 2;
   int offset, newOff;
@@ -54,24 +56,24 @@ knnresult distrAllkNN(double * X, int n, int d, int k) {
 
   switch (taskid % 2) {
   case 0:
-    MPI_Recv(otherElements, n * d, MPI_DOUBLE, (numtasks + taskid - 1) % numtasks, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(otherElements, n * d, MPI_DOUBLE, (taskNum + taskid - 1) % taskNum, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     t2 = clock();
     result = kNN(myElements, myElements, n, n, d, k);
     sum += clock() - t2;
-    MPI_Send(myElements, n * d, MPI_DOUBLE, (taskid + 1) % numtasks, 0, MPI_COMM_WORLD);
+    MPI_Send(myElements, n * d, MPI_DOUBLE, (taskid + 1) % taskNum, 0, MPI_COMM_WORLD);
     t2 = clock();
     tempResult = kNN(otherElements, myElements, n, n, d, k);
-    offset = (numtasks + taskid - 1) % numtasks;
-    newOff = (numtasks + offset - 1) % numtasks;
+    offset = (taskNum + taskid - 1) % taskNum;
+    newOff = (taskNum + offset - 1) % taskNum;
     result = updateResult(result, tempResult, offset, newOff);
     sum += clock() - t2;
 
-    while (counter < numtasks) {
-      MPI_Recv(buffer, n * d, MPI_DOUBLE, (numtasks + taskid - 1) % numtasks, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      MPI_Send(otherElements, n * d, MPI_DOUBLE, (taskid + 1) % numtasks, 0, MPI_COMM_WORLD);
+    while (counter < taskNum) {
+      MPI_Recv(buffer, n * d, MPI_DOUBLE, (taskNum + taskid - 1) % taskNum, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Send(otherElements, n * d, MPI_DOUBLE, (taskid + 1) % taskNum, 0, MPI_COMM_WORLD);
       swapElement( & otherElements, & buffer);
       //otherElements = buffer;
-      newOff = (numtasks + newOff - 1) % numtasks;
+      newOff = (taskNum + newOff - 1) % taskNum;
       t2 = clock();
       tempResult = kNN(otherElements, myElements, n, n, d, k);
       result = updateResult(result, tempResult, 0, newOff);
@@ -81,24 +83,24 @@ knnresult distrAllkNN(double * X, int n, int d, int k) {
     break;
 
   case 1:
-    MPI_Send(myElements, n * d, MPI_DOUBLE, (taskid + 1) % numtasks, 0, MPI_COMM_WORLD);
+    MPI_Send(myElements, n * d, MPI_DOUBLE, (taskid + 1) % taskNum, 0, MPI_COMM_WORLD);
     t2 = clock();
     result = kNN(myElements, myElements, n, n, d, k);
     sum += clock() - t2;
     MPI_Recv(otherElements, n * d, MPI_DOUBLE, taskid - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     t2 = clock();
     tempResult = kNN(otherElements, myElements, n, n, d, k);
-    offset = (numtasks + taskid - 1) % numtasks;
-    newOff = (numtasks + offset - 1) % numtasks;
+    offset = (taskNum + taskid - 1) % taskNum;
+    newOff = (taskNum + offset - 1) % taskNum;
     result = updateResult(result, tempResult, offset, newOff);
     sum += clock() - t2;
 
-    while (counter < numtasks) {
-      MPI_Send(otherElements, n * d, MPI_DOUBLE, (taskid + 1) % numtasks, 0, MPI_COMM_WORLD);
+    while (counter < taskNum) {
+      MPI_Send(otherElements, n * d, MPI_DOUBLE, (taskid + 1) % taskNum, 0, MPI_COMM_WORLD);
       MPI_Recv(otherElements, n * d, MPI_DOUBLE, taskid - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       t2 = clock();
       tempResult = kNN(otherElements, myElements, n, n, d, k);
-      newOff = (numtasks + newOff - 1) % numtasks;
+      newOff = (taskNum + newOff - 1) % taskNum;
       result = updateResult(result, tempResult, 0, newOff);
       sum += clock() - t2;
       counter++;
@@ -117,8 +119,8 @@ knnresult distrAllkNN(double * X, int n, int d, int k) {
   MPI_Reduce( & timeTaken, & avgTimeTaken, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
   if (taskid == 0) {
-    printf("Time taken for computing:  %lf\n", avgComputeTime / (numtasks));
-    printf("Time taken for communication :  %lf\n", avgTimeTaken / (numtasks) - avgComputeTime / (numtasks));
+    printf("Time taken for computing:  %lf\n", avgComputeTime / (taskNum));
+    printf("Time taken for communication :  %lf\n", avgTimeTaken / (taskNum) - avgComputeTime / (taskNum));
   }
 
   double localMin = result.ndist[1];
@@ -283,72 +285,79 @@ knnresult kNN(double * X, double * Y, int n, int m, int d, int k) {
 
   double alpha = -2.0, beta = 0.0;
   int lda = d, ldb = d, ldc = m, i, j;
-  int counter = 0;
-  double limit = 0.00000001;
+  double zerolim = 0.00000001;
 
   double * distance = (double * ) calloc((n * m), sizeof(double));
-  double * xRow = (double * ) calloc(n, sizeof(double));
-  double * yRow = (double * ) calloc(m, sizeof(double));
-  double * transD = (double * ) malloc(m * n * sizeof(double));
+  double * sumX2 = (double * ) calloc(n, sizeof(double));
+  double * sumY2 = (double * ) calloc(m, sizeof(double));
+  double * distanceT = (double * ) malloc(m * n * sizeof(double));
   int * indeces = (int * ) malloc(m * n * sizeof(int));
   double * final = (double * ) malloc(m * k * sizeof(double));
   int * finalIdx = (int * ) malloc(m * k * sizeof(int));
 
+  // set indeces
   for (int i = 0; i < m; i++) {
     for (int j = 0; j < n; j++) {
       *(indeces + i * n + j) = j;
     }
   }
 
+  // X, Y matrix multiplication using cblas: distance = -2 X * Y.'
   cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, n, m, d, alpha, X, lda, Y, ldb, beta, distance, ldc);
 
+  // sum(X.^2,2) calculation
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < d; j++) {
-      xRow[i] += ( * (X + i * d + j)) * ( * (X + i * d + j));
+      sumX2[i] += ( * (X + i * d + j)) * ( * (X + i * d + j));
     }
   }
+  // sum(Y.^2,2).' calculation
   for (int i = 0; i < m; i++) {
     for (int j = 0; j < d; j++) {
-      yRow[i] += ( * (Y + i * d + j)) * ( * (Y + i * d + j));
+      sumY2[i] += ( * (Y + i * d + j)) * ( * (Y + i * d + j));
     }
   }
+
+  // distance addition formula
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < m; j++) {
-      *(distance + i * m + j) += xRow[i] + yRow[j];
-      if ( * (distance + i * m + j) < limit) {
+      *(distance + i * m + j) += sumX2[i] + sumY2[j];
+      if ( * (distance + i * m + j) < zerolim) {
         *(distance + i * m + j) = 0;
       } else {
         *(distance + i * m + j) = sqrt( * (distance + i * m + j));
       }
     }
   }
-  free(xRow);
-  free(yRow);
+  free(sumX2);
+  free(sumY2);
 
-  // calculate transpose matrix
+  // calculate transpose matrix of distance
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < m; j++) {
-      *(transD + j * n + i) = * (distance + i * m + j);;
+      *(distanceT + j * n + i) = * (distance + i * m + j);;
     }
   }
   free(distance);
 
+  // moving kthSmallest to k first columns
   for (int i = 0; i < m; i++) {
-    kthSmallest(transD, indeces, i * n, (i + 1) * n - 1, k);
+    kthSmallest(distanceT, indeces, i * n, (i + 1) * n - 1, k);
   }
 
+  // array cut: m*n -> m*k
   for (int i = 0; i < m; i++) {
     for (int j = 0; j < k; j++) {
-
-      *(final + i * k + j) = * (transD + i * n + j);
+      *(final + i * k + j) = * (distanceT + i * n + j);
       *(finalIdx + i * k + j) = * (indeces + i * n + j);
-
     }
   }
+
+  // sort each row
   for (int i = 0; i < m; i++) {
     quicksort(final, finalIdx, i * k, (i + 1) * k - 1);
   }
-  free(transD);
+  free(distanceT);
   free(indeces);
 
   result.ndist = final;

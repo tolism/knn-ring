@@ -30,6 +30,7 @@ knnresult kNN(double * X , double * Y , int n , int m , int d , int k);
 
 knnresult kNN(double * X , double * Y , int n , int m , int d , int k) {
 
+
   knnresult result;
   result.k = k;
   result.m = m;
@@ -38,39 +39,44 @@ knnresult kNN(double * X , double * Y , int n , int m , int d , int k) {
 
   double alpha=-2.0, beta=0.0;
   int lda=d, ldb=d, ldc=m, i, j;
-  int counter = 0;
-  double limit = 0.00000001;
+  double zerolim = 0.00000001;
 
   double * distance = (double *) calloc((n*m),sizeof(double));
-  double * xRow = (double *) calloc(n,sizeof(double));
-  double * yRow = (double *) calloc(m,sizeof(double));
-  double * transD = (double *) malloc(m*n*sizeof(double));
+  double * sumX2 = (double *) calloc(n,sizeof(double));
+  double * sumY2 = (double *) calloc(m,sizeof(double));
+  double * distanceT = (double *) malloc(m*n*sizeof(double));
   int * indeces = (int*) malloc(m * n  *sizeof(int));
   double * final = (double *) malloc(m*k * sizeof(double));
   int * finalIdx = (int *) malloc (m * k * sizeof(int));
 
+  // set indices
   for(int i=0; i<m; i++){
     for(int j=0; j<n; j++) {
       *(indeces+i*n+j)=j;
     }
   }
 
+  // X,Y matrix multiplication using cblas: distance = -2 X * Y.'
   cblas_dgemm(CblasRowMajor , CblasNoTrans , CblasTrans , n, m , d , alpha , X , lda , Y , ldb , beta, distance , ldc);
 
+  // sum(X.^2,2) calculation
   for(int i=0; i<n; i++){
     for(int j=0; j<d; j++){
-      xRow[i] += (*(X+i*d+j)) * (*(X+i*d+j));
+      sumX2[i] += (*(X+i*d+j)) * (*(X+i*d+j));
     }
   }
+  // sum(Y.^2,2).' calculation
   for(int i=0; i<m; i++){
     for(int j=0; j<d; j++){
-      yRow[i] += (*(Y+i*d+j)) * (*(Y+i*d+j));
+      sumY2[i] += (*(Y+i*d+j)) * (*(Y+i*d+j));
     }
   }
+
+  // distance addition formula
   for(int i=0; i<n; i++){
     for(int j=0; j<m; j++){
-      *(distance + i*m + j) += xRow[i] + yRow[j];
-      if(*(distance + i*m + j) < limit){
+      *(distance + i*m + j) += sumX2[i] + sumY2[j];
+      if(*(distance + i*m + j) < zerolim){
         *(distance + i*m + j) = 0;
       }
       else{
@@ -78,34 +84,36 @@ knnresult kNN(double * X , double * Y , int n , int m , int d , int k) {
       }
     }
   }
-  free(xRow);
-  free(yRow);
+  free(sumX2);
+  free(sumY2);
 
-  // calculate transpose matrix
+  // calculate transpose matrix of distance
   for(int i=0; i<n; i++){
     for(int j=0; j<m; j++){
-      *(transD + j*n + i ) = *(distance + i*m + j ); ;
+      *(distanceT + j*n + i ) = *(distance + i*m + j ); ;
     }
   }
 //  free(distance);
 
-for(int i=0; i < m; i++){
-  kthSmallest(transD , indeces , i*n , (i+1)*n-1, k);
-}
-
-for(int i = 0; i<m; i++){
-  for(int j = 0; j<k; j++){
-
-    *(final+i*k+j) = *(transD+i*n+j);
-    *(finalIdx+i*k+j) = *(indeces+i*n+j);
-
+  // moving kthSmallest to k first columns
+  for(int i=0; i < m; i++){
+    kthSmallest(distanceT , indeces , i*n , (i+1)*n-1, k);
   }
-}
-for(int i = 0 ; i<m; i++){
-    quicksort(final , finalIdx , i*k , (i+1)*k-1);
-}
 
-  free(transD);
+  // array cut: m*n -> m*k
+  for(int i = 0; i<m; i++){
+    for(int j = 0; j<k; j++){
+      *(final+i*k+j) = *(distanceT+i*n+j);
+      *(finalIdx+i*k+j) = *(indeces+i*n+j);
+    }
+  }
+
+  // sort each row
+  for(int i = 0 ; i<m; i++){
+      quicksort(final , finalIdx , i*k , (i+1)*k-1);
+  }
+
+  free(distanceT);
   free(indeces);
 
   result.ndist = final;
