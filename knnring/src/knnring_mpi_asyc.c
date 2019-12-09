@@ -40,8 +40,6 @@ knnresult distrAllkNN(double * X , int n , int d , int k ) {
   MPI_Status status;
 
   //Allocating memory
-  int *idx =(int *)malloc(n*k*sizeof(int));
-  double * dist = (double *) malloc(n * k * sizeof(double));
   double *buffer = (double *) malloc(n * d * sizeof(double));
   double *myElements = (double *) malloc(n * d * sizeof(double));
   double *otherElements = (double *) malloc(n * d * sizeof(double));
@@ -52,8 +50,7 @@ knnresult distrAllkNN(double * X , int n , int d , int k ) {
 
   result.m=n;
   result.k=k;
-  idx = result.nidx;
-  dist = result.ndist;
+
 
 
   myElements = X;
@@ -334,11 +331,10 @@ knnresult kNN(double * X, double * Y, int n, int m, int d, int k) {
   knnresult result;
   result.k = k;
   result.m = m;
-  result.nidx = NULL;
-  result.ndist = NULL;
+
 
   double alpha = -2.0, beta = 0.0;
-  int lda = d, ldb = d, ldc = m, i, j;
+  int lda = d, ldb = d, ldc = m;
   double zerolim   = 0.00000001;
 
   double * distance = (double * ) calloc((n * m), sizeof(double));

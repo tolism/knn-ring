@@ -38,7 +38,7 @@ knnresult kNN(double * X , double * Y , int n , int m , int d , int k) {
   result.ndist = NULL;
 
   double alpha=-2.0, beta=0.0;
-  int lda=d, ldb=d, ldc=m, i, j;
+  int lda=d, ldb=d, ldc=m;
   double zerolim = 0.00000001;
 
   double * distance = (double *) calloc((n*m),sizeof(double));
