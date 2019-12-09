@@ -6,6 +6,7 @@ Parallel and Distributed Systems : 2nd assignment
 
 To execute the versions 
 ```
+Incase you have problem with the execution , copy your own lib folder , with the BLAS libraries 
 make all
 /src/knnring_sequential 
 mpirun -np <number of processes> ./src/knnring_mpi_syc
